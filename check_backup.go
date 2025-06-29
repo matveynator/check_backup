@@ -1,4 +1,5 @@
-//
+// check_backup.go — Nagios/NRPE backup checker (Unix)
+// 2025 © Matvey
 package main
 
 import (
@@ -19,35 +20,36 @@ const (
 	UNKNOWN
 )
 
-/* Flags */
+/* CLI flags */
 var (
-	dirsCSV, pattern      string
-	ctimeMax, minSize     int64
-	sampleN               int
-	warnPct, critPct      = 80.0, 90.0
+	dirsCSV, pattern  string
+	ctimeMax, minSize int64
+	sampleN           int
+	warnPct, critPct  = 80.0, 90.0
 )
 
 func init() {
 	flag.StringVar(&dirsCSV, "d", "", "Backup directories (comma-separated)  *required*")
-	flag.StringVar(&pattern, "p", "*", "Glob pattern (default \"*\")")
+	flag.StringVar(&pattern, "p", "*", "Glob pattern for backup files (default \"*\")")
 	flag.Int64Var(&ctimeMax, "c", 0, "CRITICAL if newest backup older than N seconds  *required*")
 	flag.Int64Var(&minSize, "s", 0, "CRITICAL if newest backup smaller than N bytes   *required*")
 	flag.IntVar(&sampleN, "n", 10, "How many recent backups to analyse frequency")
 }
 
-/* Helpers */
+/* ── helpers ─────────────────────────────────────────────── */
 func human(b int64) string {
-	const unit = 1024
-	if b < unit {
+	const u = 1024
+	if b < u {
 		return fmt.Sprintf("%d B", b)
 	}
-	div, exp := int64(unit), 0
-	for n := b/unit; n >= unit; n /= unit {
-		div *= unit
+	div, exp := int64(u), 0
+	for n := b / u; n >= u; n /= u {
+		div *= u
 		exp++
 	}
 	return fmt.Sprintf("%.1f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
 }
+
 func freqPhrase(sec float64) string {
 	switch {
 	case sec < 90:
@@ -66,7 +68,13 @@ func freqPhrase(sec float64) string {
 		return fmt.Sprintf("every %.1f days", sec/86400)
 	}
 }
+
 func dh(d time.Duration) string { return fmt.Sprintf("%dd %dh", int(d.Hours())/24, int(d.Hours())%24) }
+
+func formatDate(t time.Time) string { return t.Format("02 January 2006 at 15:04") }
+
+func agePhrase(sec float64) string { return dh(time.Duration(sec) * time.Second) }
+
 func autoGlob(p string) string {
 	if strings.ContainsAny(p, "*?[") {
 		return p
@@ -74,45 +82,49 @@ func autoGlob(p string) string {
 	return "*" + p + "*"
 }
 
-/* Data structs */
-type backup struct{ path string; mt time.Time; size int64 }
+/* ── structs ─────────────────────────────────────────────── */
+type backup struct {
+	path string
+	mt   time.Time
+	size int64
+}
 type result struct {
-	dir                                string
-	state                              int
-	reason                             string
-	last                               backup
-	ageSec, avgIntSec, usedPct         float64
-	avgSize, total, free               int64
-	leftFiles                          int
-	leftTime                           time.Duration
+	dir                        string
+	state                      int
+	reason                     string
+	last                       backup
+	ageSec, avgIntSec, usedPct float64
+	avgSize, total, free       int64
+	leftFiles                  int
+	leftTime                   time.Duration
 }
 
-/* Analyse one directory */
+/* ── analysis ───────────────────────────────────────────── */
 func analyse(dir string) result {
 	r := result{dir: dir, state: OK, reason: "OK"}
 
 	/* collect files */
-	var files []backup
+	var list []backup
 	filepath.Walk(dir, func(p string, i os.FileInfo, err error) error {
 		if err != nil || i.IsDir() {
 			return nil
 		}
-		ok, _ := filepath.Match(pattern, filepath.Base(p))
-		if ok {
-			files = append(files, backup{p, i.ModTime(), i.Size()})
+		if ok, _ := filepath.Match(pattern, filepath.Base(p)); ok {
+			list = append(list, backup{p, i.ModTime(), i.Size()})
 		}
 		return nil
 	})
-	if len(files) == 0 {
+	if len(list) == 0 {
 		r.state, r.reason = UNKNOWN, "no files"
 		return r
 	}
-	sort.Slice(files, func(i, j int) bool { return files[i].mt.After(files[j].mt) })
-	r.last = files[0]
+
+	sort.Slice(list, func(i, j int) bool { return list[i].mt.After(list[j].mt) })
+	r.last = list[0]
 	r.ageSec = time.Since(r.last.mt).Seconds()
 
 	/* averages */
-	sample := files
+	sample := list
 	if len(sample) > sampleN {
 		sample = sample[:sampleN]
 	}
@@ -129,20 +141,20 @@ func analyse(dir string) result {
 		r.avgIntSec = sumInt / float64(len(sample)-1)
 	}
 
-	/* disk stats */
-	tot, free, err := diskUsage(dir)
+	/* disk */
+	tot, free, err := diskUsage(dir) // platform-specific file
 	if err != nil {
 		r.state, r.reason = UNKNOWN, "disk error"
 		return r
 	}
 	r.total, r.free = tot, free
 	r.usedPct = 100 * float64(tot-free) / float64(tot)
-	r.leftFiles = int(float64(free) / float64(r.avgSize))
+	r.leftFiles = int(float64(r.free) / float64(r.avgSize))
 	if r.avgIntSec > 0 {
 		r.leftTime = time.Duration(r.avgIntSec*float64(r.leftFiles)) * time.Second
 	}
 
-	/* state */
+	/* status */
 	switch {
 	case int64(r.ageSec) >= ctimeMax:
 		r.state, r.reason = CRITICAL, "backup too old"
@@ -156,21 +168,25 @@ func analyse(dir string) result {
 	return r
 }
 
-/* MAIN */
+/* ── MAIN ───────────────────────────────────────────────── */
 func main() {
 	flag.Parse()
 
+	if len(os.Args) == 1 {
+		flag.Usage()
+		os.Exit(UNKNOWN)
+	}
 	if dirsCSV == "" || ctimeMax == 0 || minSize == 0 {
-		fmt.Println("UNKNOWN: -d, -c, -s are required. Use -h for help.")
+		fmt.Println("UNKNOWN: -d, -c and -s are required. Use -h for help.")
 		os.Exit(UNKNOWN)
 	}
 
 	pattern = autoGlob(pattern)
 
 	var dirs []string
-	for _, p := range strings.Split(dirsCSV, ",") {
-		if s := strings.TrimSpace(p); s != "" {
-			dirs = append(dirs, s)
+	for _, s := range strings.Split(dirsCSV, ",") {
+		if trimmed := strings.TrimSpace(s); trimmed != "" {
+			dirs = append(dirs, trimmed)
 		}
 	}
 
@@ -184,9 +200,9 @@ func main() {
 		}
 	}
 
-	/* Nagios one-liner */
+	/* Nagios summary */
 	stateTxt := []string{"OK", "WARNING", "CRITICAL", "UNKNOWN"}[worst]
-	fmt.Print(stateTxt, ":")
+	fmt.Print(stateTxt + ":")
 	for i, r := range results {
 		if i > 0 {
 			fmt.Print(",")
@@ -195,7 +211,7 @@ func main() {
 	}
 	fmt.Println()
 
-	/* Detailed section */
+	/* Human-readable section */
 	for _, r := range results {
 		if r.state == UNKNOWN && r.reason == "no files" {
 			fmt.Printf("\nDirectory %s — no matching files found\n\n", r.dir)
@@ -203,17 +219,12 @@ func main() {
 		}
 
 		fmt.Printf(`
-Newest backup:  %s
-Size:           %s
-Written:        %s
-Elapsed:        %s (%.0f s)
+Last backup:    %s  (%s ago, %.0f s)
 
 Disk:           %s free / %s total (%.1f %% used)
 Capacity:       ≈ %d backups (%s each)`,
-			r.last.path,
-			human(r.last.size),
-			r.last.mt.Format("2006-01-02 15:04:05"),
-			dh(time.Duration(r.ageSec)*time.Second),
+			formatDate(r.last.mt),
+			agePhrase(r.ageSec),
 			r.ageSec,
 			human(r.free), human(r.total), r.usedPct,
 			r.leftFiles, human(r.avgSize),
@@ -234,4 +245,3 @@ Frequency:      not enough data`)
 
 	os.Exit(worst)
 }
-

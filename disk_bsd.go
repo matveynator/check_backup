@@ -29,7 +29,6 @@ func diskUsage(path string) (total, free int64, err error) {
 	}
 	// df -k shows blocks in KiB
 	totalKB, _ := strconv.ParseInt(fields[1], 10, 64)
-	freeKB,  _ := strconv.ParseInt(fields[3], 10, 64)
+	freeKB, _ := strconv.ParseInt(fields[3], 10, 64)
 	return totalKB * 1024, freeKB * 1024, nil
 }
-

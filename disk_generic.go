@@ -11,9 +11,8 @@ func diskUsage(path string) (total, free int64, err error) {
 	if err = unix.Statfs(path, &st); err != nil {
 		return
 	}
-	block := int64(st.Bsize)          // common field names
+	block := int64(st.Bsize) // common field names
 	total = int64(st.Blocks) * block
-	free  = int64(st.Bavail) * block
+	free = int64(st.Bavail) * block
 	return
 }
-
