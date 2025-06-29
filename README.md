@@ -1,22 +1,37 @@
+# 🧾 `check_backup`: Because Your Backups Deserve Attention
+
+Tired of wondering if your backups are still alive? This tool pokes them with a stick — and tells Nagios whether to chill or panic.
+It checks:
+
+* **Is your latest backup fresh enough?**
+* **Is it big enough to be real?**
+* **Is there enough disk space left for the next hundred?**
+
+If not — it complains *loudly*. Like a good sysadmin should.
+
+---
+
+## 📦 Installation (copy-paste friendly)
+
+> No root? No problem. Just copy to `/usr/local/bin` or somewhere in your `$PATH`.
 
 ### 🐧 Linux
 
-#### Linux x86-64 (Intel/AMD servers)
+#### x86-64 (Intel/AMD)
 
 ```bash
-
 curl -L https://github.com/matveynator/check_backup/releases/download/latest/check_backup_linux_amd64 \
   -o /usr/local/bin/check_backup && chmod +x /usr/local/bin/check_backup
 ```
 
-#### Linux arm64 (new Raspberry Pi / ARM servers)
+#### ARM64 (Raspberry Pi 4+, Apple M1 servers)
 
 ```bash
 curl -L https://github.com/matveynator/check_backup/releases/download/latest/check_backup_linux_arm64 \
   -o /usr/local/bin/check_backup && chmod +x /usr/local/bin/check_backup
 ```
 
-#### Linux armv7 (older Pi / embedded)
+#### ARMv7 (legacy Pis, embedded)
 
 ```bash
 curl -L https://github.com/matveynator/check_backup/releases/download/latest/check_backup_linux_arm \
@@ -25,16 +40,16 @@ curl -L https://github.com/matveynator/check_backup/releases/download/latest/che
 
 ---
 
-### 🍎 macOS
+### 🍏 macOS
 
-#### macOS Intel
+#### Intel Macs
 
 ```bash
 curl -L https://github.com/matveynator/check_backup/releases/download/latest/check_backup_darwin_amd64 \
   -o /usr/local/bin/check_backup && chmod +x /usr/local/bin/check_backup
 ```
 
-#### macOS Apple Silicon (M1/M2/M3)
+#### Apple Silicon (M1/M2/M3)
 
 ```bash
 curl -L https://github.com/matveynator/check_backup/releases/download/latest/check_backup_darwin_arm64 \
@@ -43,9 +58,9 @@ curl -L https://github.com/matveynator/check_backup/releases/download/latest/che
 
 ---
 
-### 🐡 BSD Systems
+### 🐡 BSD (yes, even those)
 
-#### FreeBSD (x86-64)
+#### FreeBSD
 
 ```bash
 curl -L https://github.com/matveynator/check_backup/releases/download/latest/check_backup_freebsd_amd64 \
@@ -68,7 +83,7 @@ curl -L https://github.com/matveynator/check_backup/releases/download/latest/che
 
 ---
 
-### 🧪 Example check
+## 🧪 Example Check
 
 ```bash
 check_backup \
@@ -78,7 +93,7 @@ check_backup \
   -s 10485760
 ```
 
-**Output:**
+### Sample Output
 
 ```
 OK: [/backup]
@@ -96,7 +111,9 @@ Forecast:       space should last ≈ 2056d0h
 
 ---
 
-### 🔌 Nagios Integration
+## 🔌 Nagios Integration
+
+Make it scream when backups go stale.
 
 **Command definition:**
 
@@ -107,7 +124,7 @@ define command {
 }
 ```
 
-**Service:**
+**Service example:**
 
 ```cfg
 define service {
@@ -118,3 +135,8 @@ define service {
 }
 ```
 
+---
+
+Backups are boring — until they're not.
+Make sure someone (or something) is watching them. 👀
+Happy monitoring!
