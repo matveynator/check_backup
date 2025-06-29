@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -84,13 +83,6 @@ func freqPhrase(sec float64) string {
 	}
 }
 
-/* Disk usage (Unix) */
-func diskUsage(path string)(tot, free int64, err error){
-	var st syscall.Statfs_t
-	if err = syscall.Statfs(path,&st); err!=nil {return}
-	tot = int64(st.Blocks)*int64(st.Bsize)
-	free= int64(st.Bavail)*int64(st.Bsize); return
-}
 
 /* Data structures */
 type backup struct{ path string; mt time.Time; size int64 }
