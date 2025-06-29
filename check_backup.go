@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/sys/unix"
 )
 
 /* Nagios exit codes */
@@ -68,18 +67,6 @@ type result struct {
 	avgSize, total, free               int64
 	leftFiles                          int
 	leftTime                           time.Duration
-}
-
-/* Disk usage using x/sys/unix (portable) */
-func diskUsage(path string) (total, free int64, err error) {
-	var st unix.Statfs_t
-	if err = unix.Statfs(path, &st); err != nil {
-		return
-	}
-	blockSize := int64(st.Bsize)
-	total = int64(st.Blocks) * blockSize
-	free = int64(st.Bavail) * blockSize
-	return
 }
 
 /* Helper functions */
